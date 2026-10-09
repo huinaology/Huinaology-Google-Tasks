@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huinaology Google Tasks Widget</title>
+    <style>
+        :root {
+            --bg-color: #E7F3F8; --accent-color: #D3E5EF; --accent-hover: #337EA9; --secondary-accent: #D3E5EF;
+            --text-main: #6D6373; --text-sub: #A89FAA; --border-color: #D3E5EF; --card-bg: #FFFFFF;
+            --main-bg: #FFF; --fail-text: #C55353; --check-color: #337EA9;
+            --btn-text: #28456C; --btn-text-hover: #FFFFFF; --note-bg: #E7F3F8; --note-text: #28456C;
+        }
+
+        [data-theme="dark"] {
+            --text-main: #E0D8E8; --text-sub: #9B93A0; --card-bg: #2A2630;
+            --main-bg: #1E1B22; --fail-text: #F28B8B;
+        }
+
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.4s ease; }
+
+        /* ✨ 상단 바 없이, 바깥 여백(margin)이 곧 테두리처럼 보이도록 카드 하나만 둔다 */
+        .main { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; background: var(--main-bg); border-radius: 16px; margin: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; position: relative; z-index: 8; }
+        .main::-webkit-scrollbar { width: 5px; } .main::-webkit-scrollbar-thumb { background-color: var(--secondary-accent); border-radius: 10px; }
+
+        .header-inline { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
+        .header-inline h2 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main); }
+
+        .icon-toggle { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--secondary-accent); background: var(--card-bg); color: var(--text-main); font-size: 12px; padding: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; flex-shrink: 0; }
+        .icon-toggle:hover { transform: scale(1.15); border-color: var(--accent-hover); }
+
+        .btn-primary { background-color: var(--accent-color); color: var(--btn-text); border: none; font-weight: 700; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .btn-primary:hover { background-color: var(--accent-hover); color: var(--btn-text-hover); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: default; transform: none; }
+        .btn-secondary { background-color: var(--card-bg); border: 2px solid var(--secondary-accent); color: var(--text-main); cursor: pointer; transition: all 0.2s ease; }
+        .btn-secondary:hover { border-color: var(--accent-hover); }
+
+        input[type="checkbox"] { accent-color: var(--check-color); }
+
+        /* 🎨 컬러 팔레트 선택 영역 (🎨 버튼으로 열고 닫는다) */
+        #palette-picker { display: none; flex-wrap: wrap; gap: 8px; justify-content: center; margin: -4px 0 12px; padding: 10px; border-radius: 10px; background: var(--card-bg); border: 1px dashed var(--border-color); }
+        #palette-picker.open { display: flex; }
+        /* 스와치 모양은 Huinaology Mini Calendar 설정의 색상 옵션과 같게 맞춘다 */
+        .swatch { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1); transition: transform 0.15s; padding: 0; }
+        .swatch:hover { transform: scale(1.12); }
+        .swatch.selected { box-shadow: 0 0 0 2px var(--text-main); }
+
+        .tasks-logo { width: 18px; height: auto; flex-shrink: 0; }
+
+        .task-row { padding: 10px 4px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); }
+        .task-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; margin: 0; }
+        .task-title { flex: 1; font-size: 12px; color: var(--text-main); font-weight: 600; word-break: break-word; }
+        .task-row.done { padding: 8px 4px; opacity: 0.65; }
+        .task-row.done .task-title { text-decoration: line-through; color: var(--text-sub); font-weight: 400; }
+        .task-date { font-size: 10px; color: var(--text-sub); white-space: nowrap; }
+        .task-hide-badge { font-size: 9px; color: #E07C6F; white-space: nowrap; background: rgba(224, 124, 111, 0.1); padding: 1px 5px; border-radius: 3px; }
+        .section-label { font-size: 10px; color: var(--text-sub); margin-bottom: 4px; font-weight: 700; }
+        .placeholder { text-align: center; padding: 30px 16px; color: var(--text-sub); font-size: 12px; }
+        .demo-note { display: none; margin-bottom: 10px; padding: 9px 12px; border-radius: 10px; background: var(--note-bg); color: var(--note-text); border: 1px solid var(--border-color); font-size: 11px; line-height: 1.5; text-align: center; }
+    </style>
+</head>
+
+<body>
+
+    <div class="main">
+        <div class="header-inline">
+            <h2 style="display:flex; align-items:center; gap:7px;"><img class="tasks-logo" src="icons/google-tasks.png" alt="">Google Tasks</h2>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <button class="btn-secondary" style="padding:4px 8px; font-size:10px; width:auto; margin:0; border-radius:6px;" onclick="loadGoogleTasks()">Refresh</button>
+                <button class="icon-toggle" onclick="togglePalettePicker()" title="컬러 변경">🎨</button>
+                <button class="icon-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="라이트/다크 모드 전환">🌙</button>
+            </div>
+        </div>
+
+        <div id="palette-picker"></div>
+
+        <div id="demo-note" class="demo-note">👀 샘플 화면입니다.<br>직접 배포한 <b>내 위젯 주소</b>를 임베드해야 내 Google Tasks와 연동해 사용할 수 있습니다.</div>
+
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <input type="text" id="newTaskInput" placeholder="새로운 할 일을 입력하세요..." style="flex:1; min-width:0; padding:8px 12px; font-size:12px; border-radius:8px; border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-main);" onkeypress="if(event.key==='Enter') createGoogleTask()">
+            <button class="btn-primary" id="newTaskBtn" style="padding:8px 16px; font-size:12px; width:auto; border-radius:8px; margin:0;" onclick="createGoogleTask()">추가</button>
+        </div>
+        <div id="tasks-container" style="display:flex; flex-direction:column;">
+            <div class="placeholder">⏳ 데이터를 불러오는 중...</div>
+        </div>
+    </div>
+
+    <script>
+        // ✨ 노션에서 쿼리 파라미터(?key=)를 해시(#key=)로 변환하거나 잘라먹는 경우를 대비해 두 가지 방식 모두 지원
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        const secretKey = urlParams.get('key') || hashParams.get('key') || '';
+        const encodedKey = encodeURIComponent(secretKey);
+        // 노션 템플릿에 넣는 샘플용 주소(?demo=1): 서버 호출 없이 샘플 목록과 안내만 보여준다.
+        // GitHub Pages(*.github.io)는 서버 기능이 없는 샘플 전용 주소이므로, 임베드 과정에서 ?demo=1이 빠져도 항상 샘플 모드로 연다.
+        const isDemo = (urlParams.get('demo') || hashParams.get('demo')) === '1' || /\.github\.io$/i.test(window.location.hostname);
+
+        // ==========================================
+        // 🎨 컬러 팔레트
+        //  - 기본(blue)은 노션 기본 하늘색(파란색 배경 #E7F3F8 / 파란색 글자 #337EA9), 나머지 10가지는 Huinaology Mini Calendar 설정의 색상 옵션과 같다
+        //  - bg: 바깥 테두리 색 / accent: 버튼 배경 / hover: 진한 포인트(체크박스·버튼 hover) / text: 버튼 글자
+        //  - URL에 &color=lavender 처럼 붙이면 그 색으로 고정된다 (위젯을 여러 개 임베드할 때 각각 다른 색 지정용)
+        // ==========================================
+        // 미니 캘린더와 같은 이름·색 (dot: 스와치/테두리 색, light: 버튼 배경)
+        const CALENDAR_COLORS = {
+            lavender: { name: '라벤더',     dot: '#C9B8DE', light: '#F1EBF8' },
+            rose:     { name: '로즈',       dot: '#EDB5C0', light: '#FBEBEE' },
+            peach:    { name: '피치',       dot: '#F6C4A6', light: '#FDEEE4' },
+            lemon:    { name: '레몬',       dot: '#F1DC86', light: '#FCF6DA' },
+            mint:     { name: '민트',       dot: '#A6DDC4', light: '#E5F6EE' },
+            aqua:     { name: '아쿠아',     dot: '#A5D9E3', light: '#E4F4F7' },
+            powder:   { name: '파우더블루', dot: '#B4C8EA', light: '#E9EFFA' },
+            sage:     { name: '세이지',     dot: '#BFCDB5', light: '#EEF3EA' },
+            creme:    { name: '크렘브륄레', dot: '#E6D1AC', light: '#F9F1E3' },
+            slate:    { name: '슬레이트',   dot: '#BAC1CC', light: '#EEF0F4' }
+        };
+        // 색을 검정 쪽으로 섞어 진한 톤을 만든다 (ratio 0~1)
+        function shade(hex, ratio) {
+            const n = parseInt(hex.slice(1), 16);
+            const ch = s => Math.round(((n >> s) & 255) * (1 - ratio)).toString(16).padStart(2, '0');
+            return `#${ch(16)}${ch(8)}${ch(0)}`;
+        }
+        const PALETTES = {
+            blue: { name: '노션 블루', bg: '#E7F3F8', accent: '#D3E5EF', hover: '#337EA9', text: '#28456C', darkBg: '#143A4E', darkAccent: '#7FB3D5' },
+        };
+        Object.entries(CALENDAR_COLORS).forEach(([k, c]) => {
+            PALETTES[k] = { name: c.name, bg: c.dot, accent: c.light, hover: shade(c.dot, 0.5), text: shade(c.dot, 0.65), darkBg: shade(c.dot, 0.82), darkAccent: c.dot };
+        });
+        const DEFAULT_PALETTE = 'blue';
+        const urlPalette = urlParams.get('color') || hashParams.get('color');
+
+        function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+
+        let currentPalette = PALETTES[urlPalette] ? urlPalette : (PALETTES[storageGet('tasksPalette')] ? storageGet('tasksPalette') : DEFAULT_PALETTE);
+
+        function applyPalette() {
+            const p = PALETTES[currentPalette];
+            const root = document.documentElement; const isDark = root.getAttribute('data-theme') === 'dark';
+            root.style.setProperty('--bg-color', isDark ? p.darkBg : p.bg);
+            root.style.setProperty('--accent-color', isDark ? p.darkAccent : p.accent);
+            root.style.setProperty('--accent-hover', p.hover);
+            root.style.setProperty('--secondary-accent', isDark ? p.hover : p.accent);
+            root.style.setProperty('--border-color', isDark ? p.hover : p.accent);
+            root.style.setProperty('--check-color', isDark ? p.darkAccent : p.hover);
+            root.style.setProperty('--btn-text', isDark ? p.darkBg : p.text);
+            // 샘플 안내: 연한 배경 + 진한 글씨 (다크모드는 반대)
+            root.style.setProperty('--note-bg', isDark ? 'rgba(255, 255, 255, 0.08)' : p.accent);
+            root.style.setProperty('--note-text', isDark ? p.darkAccent : p.text);
+            document.querySelectorAll('.swatch').forEach(el => el.classList.toggle('selected', el.dataset.key === currentPalette));
+        }
+
+        function renderPalettePicker() {
+            document.getElementById('palette-picker').innerHTML = Object.entries(PALETTES).map(([k, p]) =>
+                `<button class="swatch" data-key="${k}" title="${p.name}" style="background:${p.bg};" onclick="selectPalette('${k}')"></button>`
+            ).join('');
+        }
+
+        function togglePalettePicker() { document.getElementById('palette-picker').classList.toggle('open'); }
+
+        function selectPalette(k) {
+            currentPalette = k;
+            storageSet('tasksPalette', k);
+            applyPalette();
+        }
+
+        function toggleDarkMode() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            const btn = document.getElementById('darkModeBtn');
+            if (isDark) { root.removeAttribute('data-theme'); btn.innerText = '🌙'; storageSet('darkMode', 'false'); }
+            else { root.setAttribute('data-theme', 'dark'); btn.innerText = '☀️'; storageSet('darkMode', 'true'); }
+            applyPalette();
+        }
+
+        window.onload = function () {
+            if (storageGet('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); document.getElementById('darkModeBtn').innerText = '☀️'; }
+            renderPalettePicker();
+            applyPalette();
+            if (isDemo) {
+                document.getElementById('demo-note').style.display = 'block';
+                document.getElementById('newTaskInput').disabled = true;
+                document.getElementById('newTaskBtn').disabled = true;
+            }
+            loadGoogleTasks();
+        };
+
+        // ==========================================
+        // ✅ Google Tasks
+        // ==========================================
+        const HIDE_COMPLETED_AFTER_DAYS = 7; // 완료 후 7일이 지난 항목은 위젯에서만 숨긴다 (Google Tasks에서 삭제되지는 않음)
+        let tasksCompletedVisible = false;
+
+        function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        // Google Tasks의 due는 날짜만 의미가 있고 UTC 자정으로 내려오므로 UTC 기준으로 읽는다
+        function formatDue(due) { if (!due) return ''; const d = new Date(due); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }
+
+        // 샘플 모드용 정적 목록 (서버 응답과 같은 형태)
+        function getDemoTasks() {
+            const day = 1000 * 60 * 60 * 24; const now = new Date();
+            const dueIn = n => new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + n)).toISOString();
+            return [
+                { id: 'demo1', title: '주간 회의 자료 정리', status: 'needsAction', due: dueIn(1) },
+                { id: 'demo2', title: '장보기 (우유, 계란, 과일)', status: 'needsAction', due: dueIn(0) },
+                { id: 'demo3', title: '책 30쪽 읽기', status: 'needsAction' },
+                { id: 'demo4', title: '운동 30분', status: 'completed', completed: new Date(now.getTime() - 2 * day).toISOString() },
+            ];
+        }
+
+        async function loadGoogleTasks() {
+            const container = document.getElementById('tasks-container'); container.innerHTML = '<div class="placeholder">⏳ 데이터를 불러오는 중...</div>';
+            try {
+                let data;
+                if (isDemo) data = { success: true, tasks: getDemoTasks() };
+                else { const res = await fetch(`/api/tasks?mode=list&t=${Date.now()}&key=${encodedKey}`); data = await res.json(); }
+                const checkboxAttr = isDemo ? ' disabled title="샘플 화면에서는 체크할 수 없습니다"' : '';
+                if (!data.success) { container.innerHTML = `<div class="placeholder" style="color:var(--fail-text);">❌ 오류: ${escapeHtml(data.error)}</div>`; return; }
+
+                const tasks = data.tasks || [];
+                if (tasks.length === 0) { container.innerHTML = '<div class="placeholder">할 일이 없습니다. 🎉</div>'; return; }
+
+                const now = new Date();
+                const visible = tasks.filter(t => { if (t.status !== 'completed') return true; if (!t.completed) return true; return (now - new Date(t.completed)) / (1000 * 60 * 60 * 24) <= HIDE_COMPLETED_AFTER_DAYS; });
+                const pending = visible.filter(t => t.status !== 'completed'); const completed = visible.filter(t => t.status === 'completed');
+
+                let html = `<div class="section-label">📋 미완료 ${pending.length}건</div>`;
+                if (pending.length === 0) html += '<div style="padding:12px 4px; font-size:11px; color:var(--text-sub);">모든 할 일을 완료했습니다! 🎉</div>';
+                pending.forEach(t => {
+                    const dateStr = formatDue(t.due);
+                    html += `<div class="task-row"><input type="checkbox"${checkboxAttr} onchange="toggleGoogleTask(this, '${escapeHtml(t.id)}', true)"><div class="task-title">${escapeHtml(t.title)}</div>${dateStr ? `<span class="task-date">${dateStr}</span>` : ''}</div>`;
+                });
+
+                if (completed.length > 0) {
+                    html += `<div onclick="tasksCompletedVisible=!tasksCompletedVisible; loadGoogleTasks();" class="section-label" style="margin:12px 0 4px; cursor:pointer; display:flex; align-items:center; gap:4px; user-select:none;"><span>${tasksCompletedVisible ? '▲' : '▼'}</span> ✅ 완료 ${completed.length}건 <span style="opacity:0.6; font-size:9px;">(${HIDE_COMPLETED_AFTER_DAYS}일 후 목록에서 숨김)</span></div>`;
+                    if (tasksCompletedVisible) {
+                        completed.forEach(t => {
+                            const dateStr = formatDue(t.due);
+                            let daysLeftStr = '';
+                            if (t.completed) { const daysPassed = (now - new Date(t.completed)) / (1000 * 60 * 60 * 24); daysLeftStr = `${Math.max(0, Math.ceil(HIDE_COMPLETED_AFTER_DAYS - daysPassed))}일 후 숨김`; }
+                            html += `<div class="task-row done"><input type="checkbox" checked${checkboxAttr} onchange="toggleGoogleTask(this, '${escapeHtml(t.id)}', false)"><div class="task-title">${escapeHtml(t.title)}</div>${daysLeftStr ? `<span class="task-hide-badge">${daysLeftStr}</span>` : ''}${dateStr ? `<span class="task-date">${dateStr}</span>` : ''}</div>`;
+                        });
+                    }
+                }
+                container.innerHTML = html;
+            } catch (err) { container.innerHTML = '<div class="placeholder" style="color:var(--fail-text);">❌ 네트워크 오류</div>'; }
+        }
+
+        async function createGoogleTask() {
+            const input = document.getElementById('newTaskInput'); const btn = document.getElementById('newTaskBtn');
+            if (isDemo) return;
+            const title = input.value.trim(); if (!title) return;
+            input.disabled = true; btn.disabled = true;
+            try {
+                const res = await fetch(`/api/tasks?mode=create&title=${encodeURIComponent(title)}&t=${Date.now()}&key=${encodedKey}`); const data = await res.json();
+                if (data.success) { input.value = ''; loadGoogleTasks(); } else { alert(`오류: ${data.error}`); }
+            } catch (err) { alert('네트워크 오류'); }
+            input.disabled = false; btn.disabled = false; input.focus();
+        }
+
+        async function toggleGoogleTask(checkbox, taskId, isCompleted) {
+            if (isDemo) return;
+            checkbox.disabled = true;
+            try {
+                const res = await fetch(`/api/tasks?mode=${isCompleted ? 'complete' : 'uncomplete'}&taskId=${encodeURIComponent(taskId)}&t=${Date.now()}&key=${encodedKey}`); const data = await res.json();
+                if (!data.success) alert(`오류: ${data.error}`);
+            } catch (err) { alert('네트워크 오류'); }
+            loadGoogleTasks();
+        }
+    </script>
+</body>
+</html>
